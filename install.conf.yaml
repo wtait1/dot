@@ -1,0 +1,49 @@
+- defaults:
+    brewfile:
+      stdout: false
+      stderr: true
+      include: ['tap', 'brew', 'cask', 'mas']
+    shell:
+      stdout: false
+      stderr: true
+    pip:
+      stdout: false
+      stderr: true
+
+- create:
+  - ~/.config
+  - ~/.config/shell
+  - ~/.config/iterm2
+
+- shell:
+  - ['/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"', Install Homebrew]
+  - ['brew install wget']
+  - ['sh -c "$(wget https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh -O -)"', Install oh my zsh]
+  - ['bash < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer)', Install gvm (Go version manager)]
+  - ['curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh | bash', Install nvm (Node version manager)]
+  - ['nvm install 12', Install Node]
+  - ['nvm use 12 && nvm install-latest-npm && npm install -g git-split-diffs', Install npm + global modules]
+
+- brewfile:
+    file: ./src/Brewfile
+
+- shell:
+  - [cat ./src/vs_code_extensions_list.txt | xargs -n 1 code --install-extension, Install vscode extensions]
+
+- pip:
+    file: ./src/static/requirements.txt
+    binary: /usr/local/bin/python3
+    user: true
+
+- link:
+    ~/.vimrc: 
+        path: ./src/vimrc
+        relink: true
+    ~/.zshrc:
+        path: ./src/zshrc
+        force: true>
+    ~/.p10k.zsh:
+        path: ./src/p10k.zsh
+        force: true
+    ~/.config/shell/customization: ./src/shell-customization
+    ~/.config/iterm2/com.googlecode.iterm2.plist: ./src/com.googlecode.iterm2.plist

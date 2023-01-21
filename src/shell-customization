@@ -1,0 +1,171 @@
+# - - - - - - - - - -
+# - - - aliases - - -
+# - - - - - - - - - -
+alias edt='vim ~/.config/shell/customization'
+alias src='source ~/.zshrc'
+
+## git stuff
+alias cb='git symbolic-ref --short HEAD | pbcopy'
+alias gcan='git commit --amend --no-edit'
+alias gcop='git checkout -'
+alias gdc='git diff --cached'
+alias gdd='git diff "$DEFAULT_BRANCH" HEAD'
+alias gdn='git diff --name-only'
+alias gdnd='gdd --name-only'
+alias gds='GIT_PAGER="git-split-diffs --color | less -RFX" gd'
+alias gdsc='gds --cached'
+alias gdsd='GIT_PAGER="git-split-diffs --color | less -RFX" gdd'
+alias gfp='git fetch --prune --tags --force'
+alias gs='git status'
+alias gsa='$(cd $(git root) && git add . && git stash > /dev/null)'
+
+# get branch name
+alias bn='git rev-parse --abbrev-ref head'
+# get commit hash for branch tip
+alias cn='git rev-parse --short head'
+alias r='cd $(git root)'
+# rebase all commits on current branch
+alias rb='git rebase -i $(git merge-base develop head)'
+# `ReBase Fix All`
+alias rbfa='git commit -m "tmp" && rb'
+
+alias rbmb='git rebase -i $(git merge-base $(git_develop_branch) HEAD)'
+
+## everything else
+alias awl='awless'
+alias b='btm'
+alias c='bat'
+alias cat='bat'
+alias cbs='pbpaste | sort | pbcopy'
+alias cbu='pbpaste | sort -u | pbcopy'
+alias dc='docker-compose'
+alias dr='docker run --rm -it --entrypoint=/bin/bash'
+# https://apple.stackexchange.com/a/211050
+alias dt='open . -a iterm'
+alias eg='env | grep -i'
+alias gae='aws athena get-query-execution --query-execution-id'
+alias gar='aws athena get-query-results --query-execution-id'
+alias gw='./gradlew'
+alias hc='http localhost:8080/health/full'
+alias k='kubectl'
+alias k9='kill -9'
+alias ls='exa'
+alias rm='trash'
+# https://gist.github.com/earthgecko/3089509#gistcomment-2140400
+alias r32='LC_CTYPE=C tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 32 | head -n 1'
+alias see='ps -ef | grep'
+alias s='subl'
+alias tid='tid=$(uuidgen | tr "[:upper:]" "[:lower:]") && echo "$tid" && echo -n "$tid" | pbcopy'
+alias trino-init='docker run --rm -d -p 9212:8080 --name trino trinodb/trino'
+alias trino='docker exec -it trino trino'
+alias v='vim'
+alias where-java='/usr/libexec/java_home --verbose'
+
+# externalize kubectl aliases
+[ -f ~/.kube/kubectl_aliases ] && source ~/.kube/kubectl_aliases
+[ -f ~/.kube/kubectl_custom_aliases ] && source ~/.kube/kubectl_custom_aliases
+
+# - - - - - - - - - - - - - - - - -
+# - - - environment variables - - -
+# - - - - - - - - - - - - - - - - -
+export AWS_DEFAULT_REGION='us-west-2'
+export KUBE_EDITOR='/usr/local/bin/subl -w'
+export MANPAGER="sh -c 'col -bx | bat -l man -p'"
+# for homebrew, apparently
+export PATH="/usr/local/sbin:$PATH"
+# format results in mycli
+export LESS="-XFR"
+# for direnv
+export EDITOR='vim'
+
+
+# - - - - - - - - - - -
+# - - - functions - - -
+# - - - - - - - - - - -
+
+# to override aliases created by zsh plugins,
+# need to manually un-aias (https://superuser.com/a/1194298)
+unalias gl
+function gl() {
+    git log --oneline -n ${1:-10}
+}
+
+function ccd() {
+    mkdir -p $1 && cd $1
+}
+
+function cfp() {
+    FILEPATH="$(pwd)/$1"
+    echo "Copied path $FILEPATH"
+    echo -n "$FILEPATH" | pbcopy
+}
+
+aswap() {
+    read profile <<< $@
+    if [ -z $profile ]; then
+        profile='default'
+    fi
+    export AWS_PROFILE=$profile
+}
+
+function getip() {
+    SEARCH_TERM=$1
+    FILTER='[.Reservations[].Instances[]] | map(select(. != null and .Tags != null and (.Tags | from_entries | has("Name")) and has("PrivateIpAddress"))) | [(map(.Tags | from_entries | .Name)), map(.PrivateIpAddress)] | transpose | map({(.[0]): .[1]}) | add'
+    if [ ! -z "$SEARCH_TERM" ]; then
+        FILTER="$FILTER | with_entries(select(.key | test(\"$SEARCH_TERM\")))"
+    fi
+    RESULTS=$(aws ec2 describe-instances | jq -S "$FILTER")
+    echo "$RESULTS" | jq '.'
+    NUM_RESULTS=$(echo "$RESULTS" | jq 'length')
+    if [[ $NUM_RESULTS -eq 1 ]]; then
+        IP=$(echo "$RESULTS" | jq 'to_entries | .[0].value' | cut -d'"' -f2)
+        echo "Copying IP=$IP to clipboard"
+        echo -n "$IP" | pbcopy
+    fi
+}
+
+function dm() {
+    DEFAULT_TAG='3.8.2-jdk-8-slim'
+    MVN_IMG_TAG="${MVN_VERSION:-$DEFAULT_TAG}"
+    echo "version: $MVN_IMG_TAG"
+    CONTAINER_NAME="maven-builder_$(git remote get-url origin | cut -d'/' -f2 | cut -d'.' -f1)_$(date +%s)"
+
+    docker run -it --rm --name "$CONTAINER_NAME" \
+        -v "$PWD":/usr/src/app \
+        -v "$HOME"/.m2:/root/.m2 \
+        -w /usr/src/app \
+        "maven:$MVN_IMG_TAG" \
+        mvn $@
+}
+
+function nb() {
+    NEW_BRANCH=$1
+    git checkout -b "$NEW_BRANCH" && git push --set-upstream origin "$NEW_BRANCH"
+}
+
+# - - - - - - - - - - - - -
+# - - - bootstrapping - - -
+# - - - - - - - - - - - - -
+# disable shared history between tabs
+unsetopt inc_append_history
+unsetopt share_history
+
+# - powerlevel10k -
+# source /usr/local/opt/powerlevel10k/powerlevel10k.zsh-theme
+# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
+[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+
+# - jenv -
+export PATH="$HOME/.jenv/bin:$PATH"
+eval "$(jenv init -)"
+
+
+#THIS MUST BE AT THE END OF THE FILE FOR SDKMAN TO WORK!!!
+export SDKMAN_DIR="$HOME/.sdkman"
+[[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
+
+[[ -s "$HOME/.gvm/scripts/gvm" ]] && source "$HOME/.gvm/scripts/gvm"
+
+# - direnv -
+eval "$(direnv hook zsh)"
+
