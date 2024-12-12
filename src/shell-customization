@@ -3,24 +3,34 @@
 # - - - - - - - - - -
 alias edt='vim ~/.config/shell/customization'
 alias src='source ~/.zshrc'
+alias cmk="clear && printf '\e[3J'"
 
 ## git stuff
+SPLIT_PAGER='GIT_PAGER="git-split-diffs --color | less -RFX"'
 alias cb='git symbolic-ref --short HEAD | pbcopy'
+# clean local branches missing from remote
+alias clb="git branch -vvv | grep 'gone]' | tr -s ' ' | cut -d' ' -f2 | xargs git branch -D"
 alias gcan='git commit --amend --no-edit'
 alias gcop='git checkout -'
 alias gdc='git diff --cached'
 alias gdd='git diff "$DEFAULT_BRANCH" HEAD'
 alias gdn='git diff --name-only'
+alias gdnc='gdn --cached'
 alias gdnd='gdd --name-only'
-alias gds='GIT_PAGER="git-split-diffs --color | less -RFX" gd'
+alias gds="${SPLIT_PAGER} gd"
 alias gdsc='gds --cached'
-alias gdsd='GIT_PAGER="git-split-diffs --color | less -RFX" gdd'
+alias gdsd="${SPLIT_PAGER} gdd"
+alias gshs="${SPLIT_PAGER} git show"
+alias gdr='git diff @{upstream} @'
+alias gdsr="${SPLIT_PAGER} gdr"
 alias gfp='git fetch --prune --tags --force'
 alias gs='git status'
 alias gsa='$(cd $(git root) && git add . && git stash > /dev/null)'
 
+function gbb() { git checkout -b "$1"-backup "$1" }
+
 # get branch name
-alias bn='git rev-parse --abbrev-ref head'
+alias bn='git rev-parse --abbrev-ref head | tee >(pbcopy)'
 # get commit hash for branch tip
 alias cn='git rev-parse --short head'
 alias r='cd $(git root)'
@@ -42,23 +52,34 @@ alias dc='docker-compose'
 alias dr='docker run --rm -it --entrypoint=/bin/bash'
 # https://apple.stackexchange.com/a/211050
 alias dt='open . -a iterm'
+alias dx='cyclonedx'
 alias eg='env | grep -i'
+alias f='fzf'
 alias gae='aws athena get-query-execution --query-execution-id'
 alias gar='aws athena get-query-results --query-execution-id'
 alias gw='./gradlew'
 alias hc='http localhost:8080/health/full'
+alias kubectl='kubecolor'
 alias k='kubectl'
+alias kb='kustomize build --enable-alpha-plugins --enable-helm --load-restrictor LoadRestrictionsNone'
+alias kn='k9s'
+alias krew='kubectl krew'
 alias k9='kill -9'
-alias ls='exa'
+alias ls='eza'
+alias pr-check='gh pr checks --required'
 alias rm='trash'
+# copy the current subdirectory in a git repo
+alias rp='echo -n "${$(pwd)#$(git rev-parse --show-toplevel)/}" | tee >(pbcopy)'
 # https://gist.github.com/earthgecko/3089509#gistcomment-2140400
 alias r32='LC_CTYPE=C tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 32 | head -n 1'
 alias see='ps -ef | grep'
 alias s='subl'
+alias m='tldr'
 alias tid='tid=$(uuidgen | tr "[:upper:]" "[:lower:]") && echo "$tid" && echo -n "$tid" | pbcopy'
 alias trino-init='docker run --rm -d -p 9212:8080 --name trino trinodb/trino'
 alias trino='docker exec -it trino trino'
 alias v='vim'
+alias wh='which'
 alias where-java='/usr/libexec/java_home --verbose'
 
 # externalize kubectl aliases
@@ -77,7 +98,9 @@ export PATH="/usr/local/sbin:$PATH"
 export LESS="-XFR"
 # for direnv
 export EDITOR='vim'
-
+export FD_OPTIONS='--follow --exclude .git --exclude node_modules'
+export FZF_DEFAULT_OPTS="--no-mouse --reverse --multi --preview='(bat --style=numbers --color=always {} || cat {}) 2> /dev/null | head -300' --preview-window='right:hidden:wrap' --bind='ctrl-k:clear-query,ctrl-z:toggle-preview'"
+export FZF_DEFAULT_COMMAND='fd --type f'
 
 # - - - - - - - - - - -
 # - - - functions - - -
@@ -143,6 +166,13 @@ function nb() {
     git checkout -b "$NEW_BRANCH" && git push --set-upstream origin "$NEW_BRANCH"
 }
 
+# https://stackoverflow.com/a/59412853
+function seecert () {
+  nslookup $1
+  (openssl s_client -showcerts -servername $1 -connect $1:443 <<< "Q" | openssl x509 -text | grep -iA2 "Validity")
+}
+
+
 # - - - - - - - - - - - - -
 # - - - bootstrapping - - -
 # - - - - - - - - - - - - -
@@ -159,6 +189,7 @@ unsetopt share_history
 export PATH="$HOME/.jenv/bin:$PATH"
 eval "$(jenv init -)"
 
+export PATH="$PATH:$(yarn global bin)"
 
 #THIS MUST BE AT THE END OF THE FILE FOR SDKMAN TO WORK!!!
 export SDKMAN_DIR="$HOME/.sdkman"
@@ -168,4 +199,7 @@ export SDKMAN_DIR="$HOME/.sdkman"
 
 # - direnv -
 eval "$(direnv hook zsh)"
+
+# - krew -
+export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
 

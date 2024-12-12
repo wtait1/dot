@@ -3,3 +3,4 @@ syntax on
 :set mouse=a
 
 set laststatus=2
+set rtp+=/opt/homebrew/opt/fzf
