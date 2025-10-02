@@ -9,11 +9,6 @@ if [ ! -d $SRC ]; then mkdir -p $SRC; fi
 echo 'Bundling homebrew stuff...'
 brew bundle dump --force --file $SRC/Brewfile
 
-# vscode extensions
-# https://superuser.com/a/1452176
-echo 'Copying vscode extensions...'
-code --list-extensions > $SRC/vs_code_extensions_list.txt
-
 function copy() {
     if [[ ! -f "$1" ]]; then
         echo "File=$1 does not exist! Exiting..."
