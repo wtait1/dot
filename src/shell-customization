@@ -6,6 +6,8 @@ alias src='source ~/.zshrc'
 alias cmk="clear && printf '\e[3J'"
 
 ## git stuff
+alias lg='lazygit'
+
 SPLIT_PAGER='GIT_PAGER="git-split-diffs --color | less -RFX"'
 alias cb='git symbolic-ref --short HEAD | pbcopy'
 # clean local branches missing from remote
@@ -24,10 +26,31 @@ alias gshs="${SPLIT_PAGER} git show"
 alias gdr='git diff @{upstream} @'
 alias gdsr="${SPLIT_PAGER} gdr"
 alias gfp='git fetch --prune --tags --force'
+alias gud='git fetch origin $(git_develop_branch):$(git_develop_branch)'
 alias gs='git status'
 alias gsa='$(cd $(git root) && git add . && git stash > /dev/null)'
+# both unstage + discard changes
+alias grsw='git restore --staged --worktree'
+# open all files with merge conflicts
+alias resolve='code $(gdn --diff-filter=U)'
 
 function gbb() { git checkout -b "$1"-backup "$1" }
+function wt() {
+  branch=$1
+  check=$(git worktree list | grep "${branch}" | cut -d' ' -f1)
+  wt_path="$HOME/sandbox/${branch}"
+
+  # 1. Create worktree if it doesn't exist
+  if [ -z "${wt_path}" ]; then
+    git worktree add -b "${branch}" "${wt_path}" develop
+  fi
+
+  # 2. Change dir
+  cd "${wt_path}"
+
+  # 3. Set FF env vars
+  export AUPTIX_ENV="$(pwd)"
+}
 
 # get branch name
 alias bn='git rev-parse --abbrev-ref head | tee >(pbcopy)'
@@ -35,21 +58,24 @@ alias bn='git rev-parse --abbrev-ref head | tee >(pbcopy)'
 alias cn='git rev-parse --short head'
 alias r='cd $(git root)'
 # rebase all commits on current branch
-alias rb='git rebase -i $(git merge-base develop head)'
+alias rb='git rebase -i $(git merge-base $(git_develop_branch) HEAD)'
 # `ReBase Fix All`
 alias rbfa='git commit -m "tmp" && rb'
-
-alias rbmb='git rebase -i $(git merge-base $(git_develop_branch) HEAD)'
 
 ## everything else
 alias awl='awless'
 alias b='btm'
+# show `brew info` in table format
+function bit() { brew info --json $(pbpaste) | jq -r '["name","description","link"], (.[] | [.name,.desc,.homepage]) | @csv' | csvlook }
+# TODO: parameterize jq query to work w/ JSON v2 schema
+function bio() { local type=${1:-formula}; open -na "Google Chrome" --args --new-window; open $(brew info "--${type}" --json=v2 $(pbpaste) | jq -r '.[].homepage') }
 alias c='bat'
+alias cl='cd "$1" && l'
 alias cat='bat'
 alias cbs='pbpaste | sort | pbcopy'
 alias cbu='pbpaste | sort -u | pbcopy'
 alias dc='docker-compose'
-alias dr='docker run --rm -it --entrypoint=/bin/bash'
+alias dr='docker run --rm -it --entrypoint=/bin/bash --platform=linux/amd64'
 # https://apple.stackexchange.com/a/211050
 alias dt='open . -a iterm'
 alias dx='cyclonedx'
@@ -59,6 +85,8 @@ alias gae='aws athena get-query-execution --query-execution-id'
 alias gar='aws athena get-query-results --query-execution-id'
 alias gw='./gradlew'
 alias hc='http localhost:8080/health/full'
+alias j='jira'
+alias jv='jira issue view'
 alias kubectl='kubecolor'
 alias k='kubectl'
 alias kb='kustomize build --enable-alpha-plugins --enable-helm --load-restrictor LoadRestrictionsNone'
@@ -66,19 +94,24 @@ alias kn='k9s'
 alias krew='kubectl krew'
 alias k9='kill -9'
 alias ls='eza'
+alias m='tldr'
+# '%s' is "subject", aka 1st line of commit message. '%B' is the full message
+alias pr='commit="$(git log --pretty=%H --reverse develop..HEAD | head -1)"; gh pr create --title="$(git show -q --pretty=%s ${commit})" --body "$(git show -q --pretty=%B ${commit})"'
 alias pr-check='gh pr checks --required'
 alias rm='trash'
 # copy the current subdirectory in a git repo
-alias rp='echo -n "${$(pwd)#$(git rev-parse --show-toplevel)/}" | tee >(pbcopy)'
+alias rp='git rev-parse --show-prefix | tee >(pbcopy)'
 # https://gist.github.com/earthgecko/3089509#gistcomment-2140400
 alias r32='LC_CTYPE=C tr -dc 'a-zA-Z0-9' < /dev/urandom | fold -w 32 | head -n 1'
 alias see='ps -ef | grep'
 alias s='subl'
-alias m='tldr'
+alias sq='steampipe query'
 alias tid='tid=$(uuidgen | tr "[:upper:]" "[:lower:]") && echo "$tid" && echo -n "$tid" | pbcopy'
+alias todo='rg -i. "$(git branch --show-current).*TODO" "$(git rev-parse --show-toplevel)"'
 alias trino-init='docker run --rm -d -p 9212:8080 --name trino trinodb/trino'
 alias trino='docker exec -it trino trino'
 alias v='vim'
+alias vs='code $(git rev-parse --show-toplevel)'
 alias wh='which'
 alias where-java='/usr/libexec/java_home --verbose'
 
@@ -101,6 +134,12 @@ export EDITOR='vim'
 export FD_OPTIONS='--follow --exclude .git --exclude node_modules'
 export FZF_DEFAULT_OPTS="--no-mouse --reverse --multi --preview='(bat --style=numbers --color=always {} || cat {}) 2> /dev/null | head -300' --preview-window='right:hidden:wrap' --bind='ctrl-k:clear-query,ctrl-z:toggle-preview'"
 export FZF_DEFAULT_COMMAND='fd --type f'
+export RIPGREP_CONFIG_PATH="${HOME}/.config/shell/.ripgreprc"
+# https://github.com/eza-community/eza/issues/1224#issuecomment-2560745826
+# welp... doesn't seem to work!!
+export XDG_CONFIG_HOME="${HOME}/.config"
+export EZA_CONFIG_DIR="${HOME}/.config/eza"
+export KUBE_EDITOR='/opt/homebrew/bin/subl -w'
 
 # - - - - - - - - - - -
 # - - - functions - - -
@@ -110,7 +149,7 @@ export FZF_DEFAULT_COMMAND='fd --type f'
 # need to manually un-aias (https://superuser.com/a/1194298)
 unalias gl
 function gl() {
-    git log --oneline -n ${1:-10}
+    git log --oneline --no-merges -n ${1:-10}
 }
 
 function ccd() {
